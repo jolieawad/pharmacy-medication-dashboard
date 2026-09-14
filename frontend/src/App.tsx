@@ -13,6 +13,68 @@ type Medication = {
   status: string;
 };
 
+const medicationStrengths: Record<string, string[]> = {
+  Amoxicillin: ["125 mg", "250 mg", "500 mg", "875 mg"],
+  Azithromycin: ["100 mg", "200 mg", "250 mg", "500 mg"],
+  Atorvastatin: ["10 mg", "20 mg", "40 mg", "80 mg"],
+  Amlodipine: ["2.5 mg", "5 mg", "10 mg"],
+  Cephalexin: ["125 mg", "250 mg", "500 mg", "750 mg"],
+  Cetirizine: ["5 mg", "10 mg"],
+  Doxycycline: ["50 mg", "75 mg", "100 mg", "150 mg"],
+  Escitalopram: ["5 mg", "10 mg", "20 mg"],
+  Gabapentin: ["100 mg", "300 mg", "400 mg", "600 mg", "800 mg"],
+  Ibuprofen: ["100 mg", "200 mg", "400 mg", "600 mg", "800 mg"],
+  Lisinopril: ["2.5 mg", "5 mg", "10 mg", "20 mg", "30 mg", "40 mg"],
+  Losartan: ["25 mg", "50 mg", "100 mg"],
+  Metformin: ["500 mg", "850 mg", "1000 mg"],
+  Metoprolol: ["25 mg", "50 mg", "100 mg", "200 mg"],
+  Omeprazole: ["10 mg", "20 mg", "40 mg"],
+  Sertraline: ["25 mg", "50 mg", "100 mg"],
+  Simvastatin: ["5 mg", "10 mg", "20 mg", "40 mg", "80 mg"],
+  Trazodone: ["50 mg", "100 mg", "150 mg", "300 mg"],
+};
+
+const medicationDosageForms: Record<string, string[]> = {
+  Amoxicillin: ["Capsule", "Tablet", "Liquid"],
+  Azithromycin: ["Tablet", "Liquid"],
+  Atorvastatin: ["Tablet"],
+  Amlodipine: ["Tablet"],
+  Cephalexin: ["Capsule", "Tablet", "Liquid"],
+  Cetirizine: ["Tablet", "Liquid"],
+  Doxycycline: ["Capsule", "Tablet"],
+  Escitalopram: ["Tablet", "Liquid"],
+  Gabapentin: ["Capsule", "Tablet", "Liquid"],
+  Ibuprofen: ["Tablet", "Capsule", "Liquid"],
+  Lisinopril: ["Tablet"],
+  Losartan: ["Tablet"],
+  Metformin: ["Tablet"],
+  Metoprolol: ["Tablet"],
+  Omeprazole: ["Capsule", "Tablet"],
+  Sertraline: ["Tablet", "Liquid"],
+  Simvastatin: ["Tablet"],
+  Trazodone: ["Tablet"],
+};
+
+const strengthUnitsByForm: Record<string, string[]> = {
+  Tablet: ["mg", "mcg", "g"],
+  Capsule: ["mg", "mcg", "g"],
+  Liquid: ["mg/mL", "mg/5 mL", "mcg/mL", "g/mL"],
+  Injection: ["mg/mL", "mcg/mL", "units/mL"],
+  Cream: ["%", "mg/g"],
+  Ointment: ["%", "mg/g"],
+  Inhaler: ["mcg/actuation", "mg/actuation"],
+  Patch: ["mg/hour", "mcg/hour"],
+  Drops: ["mg/mL", "mcg/mL", "%"],
+  Suppository: ["mg", "g"],
+  Powder: ["mg", "g", "mg/g"],
+  Other: ["mg", "mcg", "g", "mg/mL", "%", "Other"],
+};
+
+const isValidStrengthUnit = (dosageForm: string, unit: string) => {
+  const validUnits = strengthUnitsByForm[dosageForm] || [];
+  return validUnits.includes(unit);
+};
+
 function App() {
   const API_URL = import.meta.env.VITE_API_URL;
   const [medications, setMedications] = useState<Medication[]>([]);
@@ -22,6 +84,10 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [strengthAmount, setStrengthAmount] = useState("");
+  const [strengthUnit, setStrengthUnit] = useState("");
+  const [supplierChoice, setSupplierChoice] = useState("");
+  const [customSupplier, setCustomSupplier] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const [newMedication, setNewMedication] = useState({
@@ -152,7 +218,58 @@ function App() {
   };
 
   const handleEditMedication = (medication: Medication) => {
-    setNewMedication(medication);
+    const commonSuppliers = [
+      "McKesson",
+      "Cardinal Health",
+      "Cencora",
+      "Morris & Dickson",
+      "Henry Schein",
+      "Anda",
+    ];
+
+    const commonStrengths =
+      medicationStrengths[medication.name] || [];
+
+    // Load supplier correctly
+    if (commonSuppliers.includes(medication.supplier)) {
+      setSupplierChoice(medication.supplier);
+      setCustomSupplier("");
+    } else {
+      setSupplierChoice("Other");
+      setCustomSupplier(medication.supplier);
+    }
+
+    // Load strength correctly
+    if (commonStrengths.includes(medication.strength)) {
+      setStrengthAmount("");
+      setStrengthUnit("");
+
+      setNewMedication({
+        ...medication,
+        strength: medication.strength,
+      });
+    } else {
+      const firstSpace = medication.strength.indexOf(" ");
+
+      if (firstSpace !== -1) {
+        setStrengthAmount(
+          medication.strength.substring(0, firstSpace)
+        );
+
+        setStrengthUnit(
+          medication.strength.substring(firstSpace + 1)
+        );
+      } else {
+        setStrengthAmount(medication.strength);
+        setStrengthUnit("");
+      }
+
+      setNewMedication({
+        ...medication,
+        strength: "Other",
+      });
+    }
+
     setEditingId(medication.id);
     setShowForm(true);
   };
@@ -162,6 +279,22 @@ function App() {
 
     if (!validateMedication()) return;
 
+    if (
+      newMedication.strength === "Other" &&
+      (!strengthAmount.trim() || !strengthUnit.trim())
+    ) {
+      alert("Please enter the custom strength amount and unit.");
+      return;
+    }
+
+    if (
+      supplierChoice === "Other" &&
+      !customSupplier.trim()
+    ) {
+      alert("Please enter the supplier name.");
+      return;
+    }
+
     try {
       const response = await fetch(
         `${API_URL}/medications/${editingId}`,
@@ -170,7 +303,17 @@ function App() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(newMedication),
+          body: JSON.stringify({
+            ...newMedication,
+            supplier:
+              supplierChoice === "Other"
+                ? customSupplier.trim()
+                : supplierChoice,
+            strength:
+              newMedication.strength === "Other"
+                ? `${strengthAmount.trim()} ${strengthUnit.trim()}`.trim()
+                : newMedication.strength,
+          }),
         }
       );
 
@@ -187,6 +330,10 @@ function App() {
       );
 
       setEditingId(null);
+      setStrengthAmount("");
+      setStrengthUnit("");
+      setSupplierChoice("");
+      setCustomSupplier("");
       setShowForm(false);
     } catch (error) {
       console.error("Error updating medication:", error);
@@ -203,6 +350,14 @@ function App() {
     );
 
     if (!confirmed) return;
+
+    if (
+      supplierChoice === "Other" &&
+      !customSupplier.trim()
+    ) {
+      alert("Please enter the supplier name.");
+      return;
+    }
 
     try {
       const response = await fetch(
@@ -227,7 +382,34 @@ function App() {
   const handleAddMedication = async () => {
 
     if (!validateMedication()) return;
-    const medicationToAdd = newMedication;
+
+    if (
+      newMedication.strength === "Other" &&
+      (!strengthAmount.trim() || !strengthUnit.trim())
+    ) {
+      alert("Please enter the custom strength amount and unit.");
+      return;
+    }
+
+    const medicationToAdd = {
+      ...newMedication,
+      supplier:
+        supplierChoice === "Other"
+          ? customSupplier.trim()
+          : supplierChoice,
+      strength:
+              newMedication.strength === "Other"
+                ? `${strengthAmount.trim()} ${strengthUnit.trim()}`.trim()
+                : newMedication.strength,
+    };
+
+    if (
+      supplierChoice === "Other" &&
+      !customSupplier.trim()
+    ) {
+      alert("Please enter the supplier name.");
+      return;
+    }
 
     try {
       const response = await fetch(`${API_URL}/medications`, {
@@ -256,6 +438,10 @@ function App() {
         expiration_date: "",
       });
 
+      setStrengthAmount("");
+      setStrengthUnit("");
+      setSupplierChoice("");
+      setCustomSupplier("");
       setShowForm(false);
     } catch (error) {
       console.error("Error adding medication:", error);
@@ -312,32 +498,130 @@ function App() {
 
       {showForm && (
         <div className="medication-form">
-          <input
-            placeholder="Medication name"
-            value={newMedication.name}
-            onChange={(e) =>
-              setNewMedication({ ...newMedication, name: e.target.value })
-            }
-          />
+          <div>
+            <input
+              list="medication-names"
+              placeholder="Medication name"
+              value={newMedication.name}
+              onChange={(e) =>
+                setNewMedication({
+                  ...newMedication,
+                  name: e.target.value,
+                })
+              }
+            />
 
-          <input
-            placeholder="Strength"
-            value={newMedication.strength}
-            onChange={(e) =>
-              setNewMedication({ ...newMedication, strength: e.target.value })
-            }
-          />
+            <datalist id="medication-names">
+              <option value="Amoxicillin" />
+              <option value="Azithromycin" />
+              <option value="Atorvastatin" />
+              <option value="Amlodipine" />
+              <option value="Cephalexin" />
+              <option value="Cetirizine" />
+              <option value="Doxycycline" />
+              <option value="Escitalopram" />
+              <option value="Gabapentin" />
+              <option value="Ibuprofen" />
+              <option value="Lisinopril" />
+              <option value="Losartan" />
+              <option value="Metformin" />
+              <option value="Metoprolol" />
+              <option value="Omeprazole" />
+              <option value="Sertraline" />
+              <option value="Simvastatin" />
+              <option value="Trazodone" />
+            </datalist>
+          </div>
 
-          <input
-            placeholder="Dosage form"
+          <select
             value={newMedication.dosage_form}
-            onChange={(e) =>
+            onChange={(e) => {
               setNewMedication({
                 ...newMedication,
                 dosage_form: e.target.value,
-              })
-            }
-          />
+              });
+              setStrengthAmount("");
+              setStrengthUnit("");
+            }}
+          >
+            <option value="">Select dosage form</option>
+
+            {(medicationDosageForms[newMedication.name] || []).map(
+              (form) => (
+                <option key={form} value={form}>
+                  {form}
+                </option>
+              )
+            )}
+
+            <option value="Other">Other</option>
+          </select>
+
+          <select
+            value={newMedication.strength}
+            onChange={(e) => {
+              setNewMedication({
+                ...newMedication,
+                strength: e.target.value,
+              });
+
+              if (e.target.value !== "Other") {
+                setStrengthAmount("");
+                setStrengthUnit("");
+              }
+            }}
+          >
+            <option value="">Select strength</option>
+
+            {(medicationStrengths[newMedication.name] || []).map(
+              (strength) => (
+                <option key={strength} value={strength}>
+                  {strength}
+                </option>
+              )
+            )}
+
+            <option value="Other">Other</option>
+          </select>
+
+          {newMedication.strength === "Other" && (
+            <div className="strength-fields">
+              <input
+                type="number"
+                min="0"
+                step="any"
+                placeholder="Custom strength amount"
+                value={strengthAmount}
+                onChange={(e) => setStrengthAmount(e.target.value)}
+              />
+
+              <select
+                value={strengthUnit}
+                onChange={(e) => setStrengthUnit(e.target.value)}
+              >
+                <option value="">Select unit</option>
+
+                {(strengthUnitsByForm[newMedication.dosage_form] || []).map(
+                  (unit) => (
+                    <option key={unit} value={unit}>
+                      {unit}
+                    </option>
+                  )
+                )}
+
+          {newMedication.strength === "Other" &&
+            strengthUnit &&
+            !isValidStrengthUnit(
+              newMedication.dosage_form,
+              strengthUnit
+            ) && (
+              <div className="field-error">
+                Invalid unit for {newMedication.dosage_form}.
+              </div>
+            )}
+              </select>
+            </div>
+          )}
 
           <input
             type="number"
@@ -363,13 +647,61 @@ function App() {
             }
           />
 
-          <input
-            placeholder="Supplier"
-            value={newMedication.supplier}
-            onChange={(e) =>
-              setNewMedication({ ...newMedication, supplier: e.target.value })
-            }
-          />
+          <select
+            value={supplierChoice}
+            onChange={(e) => {
+              const value = e.target.value;
+              setSupplierChoice(value);
+
+              if (value !== "Other") {
+                setCustomSupplier("");
+                setNewMedication({
+                  ...newMedication,
+                  supplier: value,
+                });
+              } else {
+                setNewMedication({
+                  ...newMedication,
+                  supplier: "Other",
+                });
+              }
+            }}
+          >
+            <option value="">Select supplier</option>
+            <option value="McKesson">McKesson</option>
+            <option value="Cardinal Health">Cardinal Health</option>
+            <option value="Cencora">Cencora</option>
+            <option value="Morris & Dickson">Morris & Dickson</option>
+            <option value="Henry Schein">Henry Schein</option>
+            <option value="Anda">Anda</option>
+            <option value="Other">Other</option>
+          </select>
+
+          {supplierChoice === "Other" && (
+            <>
+              <input
+                list="supplier-search"
+                type="text"
+                placeholder="Search or enter supplier name"
+                value={customSupplier}
+                onChange={(e) => {
+                  setCustomSupplier(e.target.value);
+                  setNewMedication({
+                    ...newMedication,
+                    supplier: e.target.value,
+                  });
+                }}
+              />
+
+              <datalist id="supplier-search">
+                <option value="AmerisourceBergen" />
+                <option value="Anda Pharmaceuticals" />
+                <option value="Masters Pharmaceutical" />
+                <option value="Smith Drug Company" />
+                <option value="Value Drug Company" />
+              </datalist>
+            </>
+          )}
 
           <input
             type="date"
